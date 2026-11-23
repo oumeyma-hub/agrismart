@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:agrismart/providers/auth_provider.dart';
 import 'package:agrismart/screens/inscription_page.dart';
@@ -44,7 +45,35 @@ class _ConnexionPageState extends State<ConnexionPage> {
   final _emailCtrl = TextEditingController();
   final _mdpCtrl = TextEditingController();
 
+  static const String _cleEmail = 'email_sauvegarde';
+
   bool _masquer = true;
+  bool _seSouvenir = false;
+  bool _chargementEmail = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerEmail();
+  }
+
+  // Charger l'email sauvegardé
+  Future<void> _chargerEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final email = prefs.getString(_cleEmail);
+
+    if (!mounted) return;
+
+    setState(() {
+      if (email != null && email.isNotEmpty) {
+        _emailCtrl.text = email;
+        _seSouvenir = true;
+      }
+
+      _chargementEmail = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -57,10 +86,27 @@ class _ConnexionPageState extends State<ConnexionPage> {
   Future<void> _connecter() async {
     if (!_formKey.currentState!.validate()) return;
 
-    await context.read<AuthProvider>().connexion(
+    final auth = context.read<AuthProvider>();
+
+    final ok = await auth.connexion(
       _emailCtrl.text.trim(),
       _mdpCtrl.text,
     );
+
+    if (!mounted) return;
+
+    if (ok) {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (_seSouvenir) {
+        await prefs.setString(
+          _cleEmail,
+          _emailCtrl.text.trim(),
+        );
+      } else {
+        await prefs.remove(_cleEmail);
+      }
+    }
   }
 
   // Réinitialisation du mot de passe
@@ -74,7 +120,8 @@ class _ConnexionPageState extends State<ConnexionPage> {
       return;
     }
 
-    final ok = await context.read<AuthProvider>()
+    final ok = await context
+        .read<AuthProvider>()
         .reinitialiserMotDePasse(_emailCtrl.text.trim());
 
     if (!mounted) return;
@@ -146,7 +193,23 @@ class _ConnexionPageState extends State<ConnexionPage> {
                       validator: validerEmail,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+
+                    // Mémoriser l'email
+                    if (!_chargementEmail)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Se souvenir de mon email'),
+                        value: _seSouvenir,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (valeur) {
+                          setState(() {
+                            _seSouvenir = valeur ?? false;
+                          });
+                        },
+                      ),
+
+                    const SizedBox(height: 8),
 
                     // Mot de passe
                     TextFormField(
@@ -202,13 +265,15 @@ class _ConnexionPageState extends State<ConnexionPage> {
 
                     // Mot de passe oublié
                     TextButton(
-                      onPressed: auth.occupe ? null : _motDePasseOublie,
+                      onPressed:
+                      auth.occupe ? null : _motDePasseOublie,
                       child: const Text('Mot de passe oublié ?'),
                     ),
 
                     // Inscription
                     TextButton(
-                      onPressed: auth.occupe ? null : _ouvrirInscription,
+                      onPressed:
+                      auth.occupe ? null : _ouvrirInscription,
                       child: const Text("Pas de compte ? S'inscrire"),
                     ),
                   ],

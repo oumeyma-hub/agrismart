@@ -30,8 +30,46 @@ class Meteo {
   double get pluieTotale =>
       previsions.fold(0.0, (somme, p) => somme + p.pluie);
 
+  // Conversion de l'objet Meteo vers JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'temperature': temperature,
+      'humiditeAir': humiditeAir,
+      'vent': vent,
+      'previsions': previsions.map((p) {
+        return {
+          'date': p.date.toIso8601String(),
+          'tMax': p.tMax,
+          'tMin': p.tMin,
+          'pluie': p.pluie,
+        };
+      }).toList(),
+    };
+  }
+
   // Conversion JSON vers objet Dart
   factory Meteo.fromJson(Map<String, dynamic> json) {
+    // Vérifier si le JSON vient de l'API ou du cache local
+    if (json.containsKey('temperature')) {
+      final liste = json['previsions'] as List<dynamic>;
+
+      return Meteo(
+        temperature: (json['temperature'] as num).toDouble(),
+        humiditeAir: (json['humiditeAir'] as num).toInt(),
+        vent: (json['vent'] as num).toDouble(),
+        previsions: liste.map((element) {
+          final p = Map<String, dynamic>.from(element as Map);
+          return PrevisionJour(
+            date: DateTime.parse(p['date'] as String),
+            tMax: (p['tMax'] as num).toDouble(),
+            tMin: (p['tMin'] as num).toDouble(),
+            pluie: (p['pluie'] as num).toDouble(),
+          );
+        }).toList(),
+      );
+    }
+
+    // Lecture des données reçues depuis l'API Open-Meteo
     final current = json['current'] as Map<String, dynamic>;
     final daily = json['daily'] as Map<String, dynamic>;
 
@@ -40,10 +78,8 @@ class Meteo {
     final tMin = daily['temperature_2m_min'] as List<dynamic>;
     final pluie = daily['precipitation_sum'] as List<dynamic>;
 
-    // TODO 1 : créer la liste des prévisions
     final List<PrevisionJour> listePrevisions = [];
 
-    // TODO 2 : parcourir les données de chaque jour
     for (var i = 0; i < dates.length; i++) {
       listePrevisions.add(
         PrevisionJour(
@@ -55,14 +91,10 @@ class Meteo {
       );
     }
 
-    // TODO 3 : retourner l'objet Meteo
     return Meteo(
-      temperature:
-      (current['temperature_2m'] as num).toDouble(),
-      humiditeAir:
-      (current['relative_humidity_2m'] as num).round(),
-      vent:
-      (current['wind_speed_10m'] as num).toDouble(),
+      temperature: (current['temperature_2m'] as num).toDouble(),
+      humiditeAir: (current['relative_humidity_2m'] as num).round(),
+      vent: (current['wind_speed_10m'] as num).toDouble(),
       previsions: listePrevisions,
     );
   }
